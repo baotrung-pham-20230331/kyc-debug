@@ -3,6 +3,7 @@
 import { Autocomplete, Button, TextField } from "@mui/material";
 import {
   AllCommunityModule,
+  ColDef,
   colorSchemeDark,
   ModuleRegistry,
   themeAlpine,
@@ -10,20 +11,15 @@ import {
 import { AgGridReact } from "ag-grid-react";
 import { addHours, format, parse } from "date-fns";
 import { useMemo, useState } from "react";
+import LogSettings from "./log-settings";
 
 const theme = themeAlpine.withPart(colorSchemeDark);
 ModuleRegistry.registerModules([AllCommunityModule]);
 
 interface LogCollectionProps {
   entries: Record<string, any>[];
-  onRemove?: () => void;
+  onRemove: () => void;
 }
-
-const defaultColDef = {
-  editable: false,
-  minWidth: 150,
-  resizable: true,
-};
 
 const LogCollection = ({ entries, onRemove }: LogCollectionProps) => {
   const [timeSetting, setTimeSetting] = useState({
@@ -32,6 +28,17 @@ const LogCollection = ({ entries, onRemove }: LogCollectionProps) => {
     timeFormatStr: "",
     sourceUTCOffset: "",
   });
+
+  const defaultColDef: ColDef = useMemo(() => {
+    return {
+      editable: false,
+      minWidth: 150,
+      resizable: true,
+    };
+  }, []);
+
+  // const [selectedRow, setSelectedRow] = useState([]);
+  const [key, setKey] = useState(0);
 
   const defaultColDefs = useMemo(() => {
     return Object.keys(entries[0]).map((key) => ({
@@ -45,25 +52,18 @@ const LogCollection = ({ entries, onRemove }: LogCollectionProps) => {
     return defaultColDefs.map((c) => ({ field: c.field }));
   }, defaultColDefs);
 
-  const [colDefs, setColDefs] = useState(defaultColDefs);
+  const [filteredCols, setFilteredCols] = useState<string[]>([]);
 
-  const handleColumnFilterChange = (_: any, selectedOptions: Array<any>) => {
-    if (selectedOptions.length === 0) {
-      setColDefs(defaultColDefs);
-      return;
-    }
-    setColDefs(
-      defaultColDefs.filter((c) =>
-        selectedOptions.some((o) => o.field === c.field),
-      ),
+  const finalColDefs = useMemo(() => {
+    const filteredColDefs = defaultColDefs.filter((c) =>
+      filteredCols.includes(c.field),
     );
-  };
 
-  const formattedColDefs = useMemo(() => {
     if (!timeSetting.applyTimeConversion) {
-      return colDefs;
+      return filteredColDefs;
     }
-    return colDefs.map((c) => {
+
+    return filteredColDefs.map((c) => {
       if (c.field === timeSetting.timeKey) {
         return {
           ...c,
@@ -88,96 +88,43 @@ const LogCollection = ({ entries, onRemove }: LogCollectionProps) => {
       }
       return c;
     });
-  }, [timeSetting, colDefs]);
+  }, [timeSetting, defaultColDefs, filteredCols]);
+
+  const onApplySettings = (settings) => {
+    setTimeSetting(settings.timeSetting);
+    setFilteredCols(
+      Object.keys(settings.filteredCols).filter(
+        (k) => settings.filteredCols[k],
+      ),
+    );
+  };
 
   return (
     <>
       <div className="flex">
-        <div className="flex-1">
-          <h1 className="mb-4">Reset To UTC+0</h1>
-          <div className="flex gap-4">
-            <Autocomplete
-              className="flex-1"
-              value={timeSetting.timeKey}
-              onChange={(_, value) =>
-                setTimeSetting((c) => ({ ...c, timeKey: value ?? "" }))
-              }
-              options={colOptions.map((c) => c.field)}
-              renderInput={(params) => (
-                <TextField {...params} variant="standard" label="time key" />
-              )}
-            />
-            <TextField
-              className="flex-1"
-              label="Time Format"
-              value={timeSetting.timeFormatStr}
-              onChange={(e) =>
-                setTimeSetting((c) => ({ ...c, timeFormatStr: e.target.value }))
-              }
-            />
-            <TextField
-              className="flex-1"
-              label="Source UTC Offset"
-              value={timeSetting.sourceUTCOffset}
-              onChange={(e) =>
-                setTimeSetting((c) => ({
-                  ...c,
-                  sourceUTCOffset: e.target.value,
-                }))
-              }
-            />
-            <Button
-              onClick={() =>
-                setTimeSetting((c) => ({ ...c, applyTimeConversion: true }))
-              }
-            >
-              Apply
-            </Button>
-            <Button
-              onClick={() =>
-                setTimeSetting({
-                  applyTimeConversion: false,
-                  timeKey: "",
-                  timeFormatStr: "",
-                  sourceUTCOffset: "",
-                })
-              }
-            >
-              Clear
-            </Button>
-            {/* <TextField */}
-            {/*   className="flex-1" */}
-            {/*   label="Final UTC Offset" */}
-            {/*   value={finalUTCOffset} */}
-            {/*   onChange={(e) => setFinalUTCOffset(e.target.value)} */}
-            {/* /> */}
-          </div>
-          <Autocomplete
-            onChange={handleColumnFilterChange}
-            multiple
-            options={colOptions}
-            getOptionLabel={(option) => option.field}
-            filterSelectedOptions
-            renderInput={(params) => (
-              <TextField
-                {...params}
-                variant="standard"
-                label="filter columns"
-              />
-            )}
-          />
-        </div>
-
-        <div className="flex-1 flex justify-end">
+        <LogSettings
+          key={entries.length + key}
+          colOptions={colOptions}
+          onApplySettings={onApplySettings}
+        />
+        <div className="flex-1 flex justify-between">
+          <Button
+            onClick={() => setKey((k) => k + 1)}
+            color="error"
+            className="ml-auto"
+          >
+            reset
+          </Button>
           <Button onClick={onRemove} color="error" className="ml-auto">
-            Remove log
+            remove log
           </Button>
         </div>
       </div>
       <div className="flex-1">
         <AgGridReact
+          key={entries.length + key}
           rowData={entries}
-          columnDefs={formattedColDefs}
+          columnDefs={finalColDefs}
           gridOptions={{
             enableCellTextSelection: true,
             tooltipShowDelay: 0,

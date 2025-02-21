@@ -1,7 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { ChangeEvent, useState } from "react";
 import papa from "papaparse";
+import {
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button,
+  TextField,
+} from "@mui/material";
 import LogCollection from "@/components/log-collection";
 
 export interface ILogCollection {
@@ -11,25 +19,38 @@ export interface ILogCollection {
 
 export default function Home() {
   const [logCollection, setLogCollection] = useState<ILogCollection[]>([]);
+  const [isFileEditorOpen, setIsFileEditorOpen] = useState(false);
+  const [editContent, setEditContent] = useState("");
+  const [fileName, setFileName] = useState("");
 
-  const onUploadLog = (event) => {
-    console.log(event.target.files);
+  const onUploadLog = (event: ChangeEvent<any>) => {
     const file = event.target.files[0];
-    console.log(file);
     if (file) {
-      papa.parse(file, {
-        header: true,
-        complete: (result) => {
-          setLogCollection((current) => [
-            ...current,
-            {
-              name: file.name,
-              entries: result.data,
-            },
-          ]);
-        },
-      });
+      const fileReader = new FileReader();
+      setFileName(file.name);
+      fileReader.onload = (e: any) => setEditContent(e.target.result);
+      fileReader.readAsText(file);
+      setIsFileEditorOpen(true);
     }
+  };
+
+  const handleConfirmContent = () => {
+    setIsFileEditorOpen(false);
+    papa.parse(editContent, {
+      header: true,
+      complete: (result) => {
+        setLogCollection((current) => [
+          ...current,
+          {
+            name: fileName,
+            entries: result.data,
+          },
+        ]);
+
+        setEditContent("");
+        setFileName("");
+      },
+    });
   };
 
   return (
@@ -39,7 +60,7 @@ export default function Home() {
         <input
           type="file"
           onChange={onUploadLog}
-          onClick={(e) => (e.target.value = null)}
+          onClick={(e: any) => (e.target.value = null)}
         />
       </div>
       <div className="flex-1 flex px-2 gap-2 items-stretch">
@@ -58,6 +79,29 @@ export default function Home() {
           </div>
         ))}
       </div>
+      <Dialog
+        open={isFileEditorOpen}
+        onClose={handleConfirmContent}
+        fullWidth
+        maxWidth="xl"
+      >
+        <DialogTitle>Preview and Edit</DialogTitle>
+        <DialogContent>
+          <TextField
+            multiline
+            fullWidth
+            rows={10}
+            value={editContent}
+            onChange={(e) => setEditContent(e.target.value)}
+            variant="outlined"
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleConfirmContent} color="primary">
+            OK
+          </Button>
+        </DialogActions>
+      </Dialog>
     </div>
   );
 }
