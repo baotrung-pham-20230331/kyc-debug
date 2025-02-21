@@ -52,7 +52,9 @@ const LogCollection = ({ entries, onRemove }: LogCollectionProps) => {
     return defaultColDefs.map((c) => ({ field: c.field }));
   }, defaultColDefs);
 
-  const [filteredCols, setFilteredCols] = useState<string[]>([]);
+  const [filteredCols, setFilteredCols] = useState<string[]>(
+    colOptions.map((c) => c.field),
+  );
 
   const finalColDefs = useMemo(() => {
     const filteredColDefs = defaultColDefs.filter((c) =>
